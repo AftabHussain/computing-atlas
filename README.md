@@ -8,6 +8,12 @@ This is a **content repository**, separate from Kahua, the planned knowledge-man
 
 ## Read the books
 
+**[Read The Computing Atlas online](https://aftabhussain.github.io/computing-atlas/)** or open the available PDFs below.
+
+[![The Computing Atlas website showing the online book catalog](docs/assets/atlas-site-preview.png)](https://aftabhussain.github.io/computing-atlas/)
+
+*Website preview. Click the image to open the online library.*
+
 | Volume | Title | Status | PDF |
 |:--:|---|---|---|
 | 01 | Computer Science Foundations | Planned | — |
@@ -18,8 +24,6 @@ This is a **content repository**, separate from Kahua, the planned knowledge-man
 | 06 | Deep Learning and Applied AI | Planned | — |
 | 07 | Machine Learning Research and Evaluation | Planned | — |
 | 08 | AI Safety and Tradeoffs | Planned | — |
-
-**Web reader:** After publishing the repository through GitHub Pages, open `https://YOUR_USERNAME.github.io/computing-atlas/` to browse the library and read the available books in the browser. See [Publishing](#publishing-on-github-pages) below.
 
 ### Currently available chapters (Volume 02)
 
@@ -55,6 +59,7 @@ computing-atlas/
 │   ├── index.html                   # Browser-based volume catalog
 │   ├── read.html                    # Distraction-free PDF viewer page
 │   ├── assets/
+│   │   └── atlas-site-preview.png       # Website preview displayed in the README
 │   └── pdfs/                       # Published compiled PDF(s)
 ├── scripts/build-book.sh
 └── .github/workflows/publish.yml  # Build and GitHub Pages publishing
@@ -108,8 +113,6 @@ Then open `http://localhost:8000`. The catalog and reader do not require a front
 ## Scope and licensing
 
 The technical content is a work in progress. The initial chapters have been reconstructed into editable LaTeX from author-provided PDF previews. Their explanations and examples have been preserved, with layout adapted to the shared book format.
-
-**No reuse license is included yet.** Before accepting external contributions or encouraging redistribution, select and add an appropriate license for the text and code.
 
 ## License
 
