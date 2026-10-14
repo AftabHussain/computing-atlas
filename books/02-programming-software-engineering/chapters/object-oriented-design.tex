@@ -1,0 +1,126 @@
+\chapter{Object-Oriented Design}
+\label{ch:object-oriented-design}
+\section{Interfaces and Protocols in Python}
+\label{sec:python-interfaces-protocols}
+\subsection{The design problem: an agent needs search, not a search engine}
+Consider an agent that answers questions using passages retrieved from documents. To obtain these passages, it calls a search component. A FAISS-based store may serve this role during development, while a database-backed store may be used in another deployment. Tests may instead use a small implementation that returns predefined passages. Although these components perform their work differently, the agent requires the same operation from each: given a question, return relevant evidence.
+
+In object-oriented terms, the \code{Agent} is a consumer of search functionality, and a class such as \code{FaissStore} is its provider. An object is an instance of a class; a method is a function associated with such an object. If \code{Agent} is written to construct or otherwise rely on the details of a particular store, switching to another provider can require changes to the agent itself. A more flexible design starts by stating only what search behavior the agent needs. This statement of expected behavior is called an \term{interface contract}.
+
+\subsection{Expressing the contract with a protocol}
+For this agent, the contract can be expressed as a Python method named \code{search()} that receives a query, a limit on the number of results, and a minimum similarity score, then returns a list of evidence objects. Python's \code{Protocol} provides a way to declare this requirement without implementing the search algorithm.
+
+\begin{lstlisting}[caption={Declaring the search interface with a Python protocol},label={lst:declaring-search-interface}]
+from dataclasses import dataclass
+from typing import Protocol
+
+@dataclass(frozen=True)
+class Evidence:
+    text: str
+
+class SearchAdapter(Protocol):
+    # Required method, not a search implementation.
+    def search(
+        self, query: str, top_k: int, min_score: float
+    ) -> list[Evidence]: ...
+\end{lstlisting}
+
+The declaration in Listing~\ref{lst:declaring-search-interface} is a \term{method signature}: it specifies the method name, parameters, and expected return type. The annotation \code{query: str} calls for a string; \code{top\_k: int} and \code{min\_score: float} describe an integer result limit and a floating-point threshold; and \code{-> list[Evidence]} describes a list of \code{Evidence} objects as the result. The \code{self} parameter refers to the object on which the method is called and is supplied automatically when calling a bound method. The final \code{...} is Python's \code{Ellipsis} object, used here as a placeholder because the protocol specifies an operation but does not perform it.
+
+A class satisfies this protocol when it provides a compatible \code{search()} method, even if the class does not inherit from \code{SearchAdapter}. This rule is called \term{structural typing}: compatibility is determined by the available methods and their types, rather than by an explicitly declared parent class. The annotations give readers and static type-checking tools a contract to inspect; Python does not automatically enforce that contract whenever an object is passed to a function.
+
+\subsection{Connecting the consumer to an implementation}
+The next step is to give the agent an object that actually performs search. Listing~\ref{lst:concrete-provider} uses a simplified \code{FaissStore} class to make the connection visible. Its \code{search} method returns a fixed example rather than consulting a FAISS index, and its \code{Evidence} class contains only the field needed for this demonstration. A real agentic system can have additional fields and retrieval logic. The illustrative \code{Evidence} is a dataclass, whose annotated fields determine its generated constructor; \code{frozen=True} prohibits later field reassignment.
+
+\begin{lstlisting}[caption={Supplying a concrete search provider to the agent},label={lst:concrete-provider}]
+from dataclasses import dataclass
+from typing import Protocol
+
+@dataclass(frozen=True)
+class Evidence:
+    text: str
+
+class SearchAdapter(Protocol):
+    def search(self, query: str, top_k: int,
+               min_score: float) -> list[Evidence]: ...
+
+class FaissStore:
+    # Compatible method: same parameters and result type.
+    def search(self, query: str, top_k: int,
+               min_score: float) -> list[Evidence]:
+        print("FAISS search invoked")
+        return [Evidence(text="Sample retrieved passage")]
+
+class Agent:
+    def __init__(self, searcher: SearchAdapter) -> None:
+        self.searcher = searcher
+
+    def ask(self, question: str) -> list[Evidence]:
+        return self.searcher.search(question, 4, 0.18)
+
+store = FaissStore()
+agent = Agent(store)
+results = agent.ask("How do tokens work?")
+print(results[0].text)
+\end{lstlisting}
+
+The agent initializer receives the provider and saves it as \code{self.searcher}. This initializer is named \code{Agent.\_\_init\_\_()}. The parameter annotation \code{searcher:} \code{SearchAdapter} expresses what the agent needs; it does not create a \code{SearchAdapter} object. The caller instead creates a \code{FaissStore} instance and passes it to \code{Agent(store)}. Supplying a required component from outside its consumer is called \term{dependency injection}. It lets the caller choose the provider without changing the agent's implementation.
+
+When \code{agent.ask()} executes, \code{self.searcher} refers to the \code{FaissStore} instance. Python therefore invokes \code{FaissStore.search()} directly. The protocol is not an intermediary through which requests pass; it specifies the expected interface.
+
+\subsection{How the contract is checked}
+The difference between a declared interface and an executed method is important. A static type checker, such as Pyright or mypy, can compare the methods of a proposed provider with the \code{SearchAdapter} contract before the program runs. Python itself uses the concrete object at runtime. The following example makes the distinction concrete.
+
+To see where this distinction matters, suppose a provider has the required method name but accepts too few arguments:
+
+\begin{lstlisting}[caption={A method signature that does not satisfy the contract},label={lst:bad-provider}]
+class BadStore:
+    # Omits the required top_k and min_score arguments.
+    def search(self, query: str) -> list[Evidence]:
+        return []
+
+agent = Agent(BadStore())     # Static checker: incompatible
+agent.ask("Authentication?") # Runtime: TypeError
+\end{lstlisting}
+
+A checker flags \code{Agent(BadStore())} because the supplied object's \code{search()} method cannot accept the three arguments required by the interface. If the code runs without static checking, construction of the agent still succeeds: the annotation is not a runtime guard. The failure occurs when \code{Agent.ask()} calls the method with three explicit arguments, raising a \code{TypeError}; Python also passes \code{self} implicitly. A method with the correct parameters but the wrong return type, such as \code{str} instead of \code{list[Evidence]}, can likewise be reported by a type checker. By contrast, even a correctly typed method may retrieve irrelevant passages. Type checking verifies interface compatibility, not the correctness of the search results.
+
+Figure~\ref{fig:search-contract} summarizes why the type-level contract and the runtime call must be distinguished.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  >=Latex,
+  every node/.style={align=center, font=\small},
+  contract/.style={draw,rounded corners=2pt,minimum width=3.2cm,minimum height=1.05cm,inner sep=5pt, line width=0.5pt},
+  consumer/.style={contract, draw=atlasblue, fill=atlaslightblue},
+  protocolbox/.style={contract, draw=atlasteal, fill=atlaslightteal},
+  providerbox/.style={contract, draw=atlasgold!80!black, fill=atlasgold!12}
+]
+  \node[consumer] (agent) at (-2.65,0.85) {\textbf{Agent}\\[-2pt]\scriptsize consumer holding searcher};
+  \node[protocolbox] (protocol) at (2.65,0.85) {\textbf{SearchAdapter}\\[-2pt]\scriptsize declares search(...)};
+  \node[providerbox] (provider) at (2.65,-1.2) {\textbf{FaissStore}\\[-2pt]\scriptsize implements search(...)};
+  \draw[->,dashed,atlasblue] (agent.east) -- node[above,font=\scriptsize,text=atlasblue]{type annotation} (protocol.west);
+  \draw[->,dashed,atlasteal] (protocol.south) -- node[right,font=\scriptsize,text=atlasteal]{structural check} (provider.north);
+  \draw[->,thick,atlasred] (agent.south) .. controls (-1.5,-2.2) and (1.1,-2.2) .. node[below,font=\scriptsize,pos=0.52,text=atlasred]{runtime method call} (provider.south);
+\end{tikzpicture}
+\caption{The dashed arrows represent type-level relationships. The solid arrow represents the actual call from the agent to the supplied provider; no call passes through the protocol.}
+\label{fig:search-contract}
+\end{figure}
+
+\subsection{From interchangeability to polymorphism}
+The value of separating the agent from a concrete store becomes clearer when another provider is introduced. For example, a PostgreSQL-backed store can implement the same \code{search()} signature, and the existing agent can receive it without changing \code{Agent.ask()}:
+
+\begin{lstlisting}[caption={Changing the provider without changing the consumer},label={lst:second-provider}]
+class PostgreSQLStore:
+    def search(self, query: str, top_k: int,
+               min_score: float) -> list[Evidence]:
+        return [Evidence(text="Sample database passage")]
+
+agent = Agent(PostgreSQLStore())
+results = agent.ask("How do tokens work?")
+\end{lstlisting}
+
+The same \code{Agent.ask()} operation now invokes \code{PostgreSQLStore.search()} rather than \code{FaissStore.search()}. This ability to use different concrete objects through a shared interface is \term{polymorphism}. Python selects the method belonging to the object held by \code{self.searcher}, so the consumer's call remains unchanged while the behavior of the supplied provider can differ.
+
+This design also illustrates the \term{dependency inversion principle}. The agent is the high-level component, concerned with obtaining evidence for question answering; the storage engine is a lower-level implementation detail. Instead of making the agent depend on FAISS-specific operations, both sides conform to the search contract the agent needs. Thus, the high-level logic remains independent of a particular retrieval technology. Dependency injection is the mechanism used here to supply the chosen object; polymorphism describes how interchangeable objects respond to the same method call; and dependency inversion describes the resulting direction of design dependencies. These concepts are related, but not synonymous.

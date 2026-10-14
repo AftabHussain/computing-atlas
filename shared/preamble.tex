@@ -1,0 +1,96 @@
+% Shared typographic system for all eight volumes.
+% Written for pdfLaTeX (no custom or proprietary fonts required).
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=27mm,headheight=15pt]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{etoolbox}
+\usepackage{chngcntr}
+
+% Restrained visual identity for headings, listings, links, and diagrams.
+\definecolor{atlasblue}{HTML}{1F4E79}
+\definecolor{atlasteal}{HTML}{1E7F78}
+\definecolor{atlasgold}{HTML}{A36A00}
+\definecolor{atlasred}{HTML}{9A3D36}
+\definecolor{atlasgray}{HTML}{555555}
+\definecolor{atlaslightblue}{HTML}{EAF2F8}
+\definecolor{atlaslightteal}{HTML}{EAF7F5}
+\definecolor{atlascodebg}{HTML}{F7F9FC}
+\definecolor{atlasrule}{HTML}{C7D4E2}
+\definecolor{atlaslinenumber}{HTML}{7A8691}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=atlasblue,
+  citecolor=atlasblue,
+  urlcolor=atlasblue,
+  pdfauthor={Aftab Hussain},
+  pdfsubject={The Computing Atlas: a technical library},
+  bookmarksnumbered=true,
+  bookmarksopen=true
+}
+
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{atlasblue}}{\large\normalfont\color{atlasgray} Chapter~\thechapter}{8pt}{\huge}
+\titlespacing*{\chapter}{0pt}{-15pt}{20pt}
+\titleformat{\section}{\normalfont\large\bfseries\color{atlasblue}}{\thesection}{0.75em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries\color{atlasgray}}{\thesubsection}{0.7em}{}
+\setlength{\parindent}{1.2em}
+\setlength{\parskip}{0pt}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{2}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\nouppercase{\leftmark}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\bfseries\color{atlasblue},
+  commentstyle=\itshape\color{atlasteal},
+  stringstyle=\color{atlasgold},
+  identifierstyle=\color{black},
+  emphstyle=\color{atlasred},
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+  upquote=true,
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=4,
+  frame=single,
+  rulecolor=\color{atlasrule},
+  framerule=0.5pt,
+  backgroundcolor=\color{atlascodebg},
+  numbers=left,
+  numberstyle=\tiny\color{atlaslinenumber},
+  numbersep=9pt,
+  xleftmargin=1.4em,
+  xrightmargin=0.35em,
+  framexleftmargin=1.15em,
+  aboveskip=12pt,
+  belowskip=11pt,
+  captionpos=t,
+  belowcaptionskip=6pt
+}
+\AtBeginDocument{\counterwithin{lstlisting}{chapter}}
+\renewcommand{\lstlistingname}{Listing}
+\renewcommand{\lstlistlistingname}{List of Listings}
+\input{../../shared/macros.tex}

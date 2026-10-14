@@ -1,0 +1,100 @@
+\chapter[Concurrency and Asynchronous Programming]{Concurrency and Asynchronous\\Programming}
+\label{ch:async-programming}
+\section{Coroutines and the \code{asyncio} Event Loop}
+\label{sec:asyncio-coroutines-event-loop}
+Programs often wait for operations to finish, such as a network response, a file operation, or a timer. Python's \code{asyncio} library lets a program make progress on another task while one task is waiting. The key ideas are coroutines, tasks, an event loop, and \code{await}.
+
+\subsection{Coroutine functions and coroutine objects}
+A coroutine is a computation that can pause and resume. A function written with \code{async def} is called a \term{coroutine function}. Calling that function creates a \term{coroutine object}; unlike calling a function written with \code{def}, this call does not immediately execute the function body. The coroutine body executes when an event loop advances it, for example by awaiting it or scheduling it as a task.
+
+\begin{lstlisting}[caption={Creating a coroutine object versus executing it},label={lst:create-coroutine}]
+import asyncio
+
+async def greet():                # Coroutine function
+    print("Hello")              # Body has not run yet
+
+operation = greet()              # Coroutine object; prints nothing
+asyncio.run(operation)           # Event loop runs it; prints Hello
+\end{lstlisting}
+
+In Listing~\ref{lst:create-coroutine}, \code{greet()} creates a coroutine object, which represents work to be executed; it does not execute the print statement. \code{asyncio.run(operation)} starts an event loop, executes the coroutine until it finishes, and closes the loop. Simply creating a coroutine object without awaiting or scheduling it does not run the operation.
+
+\subsection{The event loop, tasks, and \code{await}}
+The \term{event loop} is the runtime scheduler used by \code{asyncio}. It runs tasks that are ready to execute, keeps track of operations that are waiting (for example, timers or I/O), and resumes waiting tasks when they become ready. It does not require a separate operating-system thread for each task.
+
+A \code{Task} is an \code{asyncio.Task} object that wraps a coroutine object. This is a wrapper object, not another function. Here, ``wraps'' means the \code{Task} holds and manages the coroutine: it arranges for the event loop to execute it and tracks its completion, result, exception, and cancellation state. For example, \code{asyncio.create\_task(greet())} creates a \code{Task} from the coroutine object returned by \code{greet()} and schedules it to run. A \code{Task} is not the same thing as a new thread.
+
+Inside a coroutine, \code{await} waits for an awaitable, such as another coroutine or a \code{Task}. If that operation is not yet ready, \code{await} suspends the current coroutine and gives the event loop a chance to run other ready tasks. The statement after \code{await} runs only when the awaited operation completes. If the result is already available, \code{await} may continue without suspending.
+
+\subsection{Example: what runs while another task waits?}
+Listing~\ref{lst:two-tasks} makes the scheduling explicit: \code{worker\_a()} and \code{worker\_b()} first produce coroutine objects, \code{create\_task()} wraps and schedules them, and \code{gather()} lets \code{main()} wait for both results.
+
+\begin{lstlisting}[caption={Two coroutines progressing concurrently on one event loop},label={lst:two-tasks}]
+import asyncio
+
+async def worker_a():
+    print("A: Starting")
+    await asyncio.sleep(3)      # A waits; the event loop is free
+    print("A: Finished")        # Runs after about 3 seconds
+
+async def worker_b():
+    print("B: Starting")
+    await asyncio.sleep(1)      # B yields control while waiting
+    print("B: Finished")        # Runs after about 1 second
+
+async def main():
+    coro_a = worker_a()         # Create coroutine; A has not run
+    coro_b = worker_b()         # Create coroutine; B has not run
+    task_a = asyncio.create_task(coro_a) # Wrap and schedule A
+    task_b = asyncio.create_task(coro_b) # Wrap and schedule B
+    await asyncio.gather(task_a, task_b) # Main waits for both
+
+asyncio.run(main())             # Create, run, and close event loop
+\end{lstlisting}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1.72cm,y=1cm,>=Latex,font=\small]
+  \draw[->,atlasgray] (-0.05,0) -- (3.45,0) node[right,font=\scriptsize,text=atlasgray] {time};
+  \foreach \t in {0,1,2,3}{\draw[atlasgray] (\t,0.06)--(\t,-0.06) node[below,font=\scriptsize,text=atlasgray]{\t s};}
+  \node[anchor=east,text=atlasblue] at (-0.15,1.45){Task A};
+  \node[anchor=east,text=atlasteal] at (-0.15,0.76){Task B};
+  \fill[atlaslightblue] (0.11,1.23) rectangle (2.91,1.65);
+  \fill[atlaslightteal] (0.11,0.54) rectangle (0.91,0.96);
+  \fill[atlasblue] (0,1.23) rectangle (0.11,1.65);
+  \fill[atlasblue] (2.91,1.23) rectangle (3.03,1.65);
+  \fill[atlasteal] (0,0.54) rectangle (0.11,0.96);
+  \fill[atlasteal] (0.91,0.54) rectangle (1.03,0.96);
+  \node[font=\scriptsize,text=atlasblue] at (1.51,1.44) {A: awaiting 3 s timer};
+  \node[font=\scriptsize,text=atlasteal] at (0.51,0.75) {waiting};
+  \node[anchor=west,font=\scriptsize,text=atlasblue] at (3.05,1.43) {A finishes};
+  \node[anchor=west,font=\scriptsize,text=atlasteal] at (1.06,0.74) {B finishes};
+  \node[anchor=west,font=\scriptsize,text=atlasgray] at (0,2.05) {Dark color blocks: executing\qquad Pale bars: suspended};
+\end{tikzpicture}
+\caption{Approximate timeline for Listing~\ref{lst:two-tasks}. Both tasks start near $t=0$. While A waits for its three-second timer, B can run and complete after approximately one second.}
+\label{fig:asyncio-timeline}
+\end{figure}
+
+\noindent\textbf{Execution sequence.} When \code{asyncio.run(main())} starts the event loop, \code{main()} creates two coroutine objects and schedules two \code{Task}s. \code{main()} then reaches \code{await asyncio.gather(...)} and waits for both \code{Task}s. The event loop runs A until \code{await asyncio.sleep(3)} suspends it, then runs B until \code{await asyncio.sleep(1)} suspends it. After about one second, B's timer finishes and B prints its final line. After about three seconds, A prints its final line (Figure~\ref{fig:asyncio-timeline}). The output is:
+
+\begin{lstlisting}[language={},numbers=none]
+A: Starting
+B: Starting
+B: Finished
+A: Finished
+\end{lstlisting}
+
+The total elapsed time is about three seconds, rather than four, because the two waits overlap. This is \term{concurrency}: the tasks make progress during overlapping intervals. It does not imply that two Python statements execute simultaneously on different CPU cores.
+
+\subsection{Two distinctions that prevent common mistakes}
+Awaiting is not the same as scheduling concurrently. If \code{main()} instead used the following code, A would finish before B starts; the elapsed time would be about four seconds:
+
+\begin{lstlisting}[numbers=none]
+async def main():
+    await worker_a()            # Wait for all of A first
+    await worker_b()            # Only then start B
+\end{lstlisting}
+
+Removing \code{await} does not make an asynchronous operation run in the background. For instance, writing \code{asyncio.sleep(3)} without \code{await} merely creates a coroutine object for the sleep; it does not start a timer that independently pauses the function. Python may warn that the coroutine was never awaited. Conversely, \code{await} does not automatically create a new \code{Task}: in the concurrent example, \code{create\_task()} performs the scheduling, and \code{await} lets \code{main()} wait while those \code{Task}s execute.
+
+\noindent\textbf{Takeaway.} \code{async def} defines a coroutine function. Calling it creates a coroutine object. \code{create\_task()} schedules that object within a \code{Task} wrapper, and the event loop runs ready \code{Task}s. At an \code{await} that must wait, a coroutine suspends so other ready \code{Task}s can progress.

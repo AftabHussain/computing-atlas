@@ -1,0 +1,18 @@
+# LaTeX intermediates; compiled reader PDFs in docs/pdfs are intentionally tracked.
+/build/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.lol
+*.nav
+*.snm
+.DS_Store
+__pycache__/
